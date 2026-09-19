@@ -1,6 +1,11 @@
 name: Publish pilot APK to release
 
 on:
+  push:
+    branches:
+      - arena/01a0ba39-learn-english
+    paths:
+      - .github/workflows/pilot-apk-release.yml
   workflow_dispatch:
     inputs:
       tag:
@@ -38,4 +43,4 @@ jobs:
       - name: Upload APK to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ inputs.tag }}" artifacts/Lexora-1.0.0-debug.apk --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "${{ inputs.tag || 'v1.0.0-pilot.1' }}" artifacts/Lexora-1.0.0-debug.apk --clobber --repo "$GITHUB_REPOSITORY"
