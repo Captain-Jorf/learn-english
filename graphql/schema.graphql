@@ -1,0 +1,132 @@
+"Lexora's read-optimized mobile graph. Mutations with financial, identity, or external side effects remain REST-only."
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  me: User
+  dashboard: Dashboard!
+  catalog(domain: String, limit: Int = 30, offset: Int = 0): CatalogPage!
+  learningPaths: [LearningPath!]!
+  nextReview: ReviewWord
+  coachConversations: [CoachConversation!]!
+}
+
+type Mutation {
+  gradeReview(input: GradeReviewInput!): ReviewResult!
+}
+
+type User {
+  id: ID!
+  email: String!
+  displayName: String
+  role: String!
+  ageBand: String!
+  tenantId: ID
+  createdAt: String!
+}
+
+type Dashboard {
+  user: User!
+  dueReviews: Int!
+  masteredWords: Int!
+  focusedMinutesLast7Days: Int!
+  entitlements: [Entitlement!]!
+}
+
+type Entitlement {
+  planKey: String!
+  source: String!
+  endsAt: String
+}
+
+type CatalogPage {
+  total: Int!
+  words: [Word!]!
+}
+
+type Word {
+  id: ID!
+  headword: String!
+  phonetic: String
+  partOfSpeech: String!
+  cefrLevel: String!
+  domain: String!
+  definition: String!
+  example: String!
+  collocations: [String!]!
+  family: [String!]!
+  review: ReviewPrompt!
+  contentVersion: Int!
+  provenance: String!
+}
+
+type ReviewPrompt {
+  prompt: String!
+  options: [String!]!
+  hint: String!
+}
+
+type ReviewWord {
+  id: ID!
+  headword: String!
+  phonetic: String
+  partOfSpeech: String!
+  cefrLevel: String!
+  domain: String!
+  definition: String!
+  example: String!
+  collocations: [String!]!
+  family: [String!]!
+  review: ReviewPrompt!
+  contentVersion: Int!
+  provenance: String!
+  schedule: ReviewSchedule!
+}
+
+type ReviewSchedule {
+  dueAt: String!
+  intervalDays: Float!
+  easeFactor: Float!
+  repetitions: Int!
+}
+
+type ReviewResult {
+  wordId: ID!
+  outcome: String!
+  nextReviewAt: String!
+  intervalDays: Float!
+  easeFactor: Float!
+  repetitions: Int!
+}
+
+type LearningPath {
+  id: ID!
+  slug: String!
+  title: String!
+  description: String!
+  domain: String!
+  contentVersion: Int!
+}
+
+type CoachConversation {
+  id: ID!
+  title: String
+  status: String!
+  createdAt: String!
+  updatedAt: String!
+  retentionUntil: String
+}
+
+input GradeReviewInput {
+  wordId: ID!
+  outcome: ReviewOutcome!
+}
+
+enum ReviewOutcome {
+  again
+  hard
+  good
+  easy
+}
