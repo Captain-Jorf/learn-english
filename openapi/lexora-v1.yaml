@@ -1,0 +1,549 @@
+openapi: 3.1.0
+info:
+  title: Lexora Platform API
+  version: 1.0.0-draft
+  description: |
+    Production contract for Lexora's Android client, CMS workflow, learning engine, and secure AI gateway.
+    REST is reserved for identity, commands, privacy operations, entitlement, and admin actions.
+    Read-optimized mobile queries are exposed through the companion GraphQL schema.
+servers:
+  - url: https://api.lexora.example/v1
+    description: Production placeholder; replace with the deployed API origin.
+  - url: https://staging-api.lexora.example/v1
+    description: Staging placeholder.
+security:
+  - bearerAuth: []
+tags:
+  - name: Public
+  - name: Authentication
+  - name: Learning
+  - name: Coach
+  - name: Privacy
+  - name: Entitlements
+  - name: Content administration
+paths:
+  /healthz:
+    get:
+      tags: [Public]
+      security: []
+      summary: Read service health without exposing secrets.
+      responses:
+        '200':
+          description: Service is available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /public/config:
+    get:
+      tags: [Public]
+      security: []
+      summary: Return non-sensitive launch policy used by the client.
+      responses:
+        '200':
+          description: Runtime policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicConfig'
+  /auth/providers:
+    get:
+      tags: [Authentication]
+      security: []
+      summary: Check whether each OAuth provider is actually configured.
+      responses:
+        '200':
+          description: Provider readiness, never provider secrets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [providers]
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OAuthProvider'
+  /auth/register:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Create a 13+ learner account using the credential fallback flow.
+      description: Social providers use OAuth 2.1 + PKCE adapters and are not represented as mock logins.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account and rotated session created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Create a session using the credential fallback flow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password, minLength: 12 }
+      responses:
+        '200':
+          description: Rotating access and refresh token pair.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthenticatedSession' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Rotate a refresh token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string, minLength: 32 }
+      responses:
+        '200':
+          description: Previous refresh token has been revoked and replaced.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthenticatedSession' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke a refresh token for the active account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '204': { description: Refresh token revoked. }
+        '401': { $ref: '#/components/responses/Error' }
+  /me:
+    get:
+      tags: [Privacy]
+      summary: Read the authenticated profile.
+      responses:
+        '200':
+          description: Current learner.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+    delete:
+      tags: [Privacy]
+      summary: Start a verified account and data deletion request.
+      responses:
+        '202':
+          description: Deletion request recorded for the privacy workflow.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionRequest' }
+  /me/export:
+    get:
+      tags: [Privacy]
+      summary: Export portable account, learning, entitlement, and coach data.
+      responses:
+        '200':
+          description: GDPR/CCPA-ready data export payload.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+  /catalog/words:
+    get:
+      tags: [Learning]
+      security: []
+      summary: Read published, versioned English-to-English content.
+      parameters:
+        - in: query
+          name: domain
+          schema: { type: string, enum: [Everyday, Work, Ideas] }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Published editorial catalogue.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogPage' }
+  /catalog/paths:
+    get:
+      tags: [Learning]
+      security: []
+      summary: List published learning paths.
+      responses:
+        '200':
+          description: Learning paths.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [paths]
+                properties:
+                  paths:
+                    type: array
+                    items: { $ref: '#/components/schemas/LearningPath' }
+  /dashboard:
+    get:
+      tags: [Learning]
+      summary: Return the authenticated learner's dashboard read model.
+      responses:
+        '200':
+          description: Dashboard state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+  /reviews/next:
+    get:
+      tags: [Learning]
+      summary: Return the next context-first review selected by the scheduling engine.
+      responses:
+        '200':
+          description: Next review or null when no published content is available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [review]
+                properties:
+                  review:
+                    anyOf:
+                      - $ref: '#/components/schemas/ReviewWord'
+                      - type: 'null'
+  /reviews/{wordId}/grade:
+    post:
+      tags: [Learning]
+      summary: Record an active-recall outcome and calculate the next SRS interval.
+      parameters:
+        - in: path
+          name: wordId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome: { type: string, enum: [again, hard, good, easy] }
+      responses:
+        '200':
+          description: Deterministic scheduling result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewResult' }
+        '404': { $ref: '#/components/responses/Error' }
+  /entitlements/redeem:
+    post:
+      tags: [Entitlements]
+      summary: Redeem an auditable enterprise pilot access code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, minLength: 4, maxLength: 64 }
+      responses:
+        '200':
+          description: Entitlement activated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entitlement]
+                properties:
+                  entitlement: { $ref: '#/components/schemas/Entitlement' }
+        '404': { $ref: '#/components/responses/Error' }
+  /coach/conversations:
+    get:
+      tags: [Coach]
+      summary: List the user's retained coach conversations.
+      responses:
+        '200':
+          description: Conversation list subject to retention policy.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [conversations]
+                properties:
+                  conversations:
+                    type: array
+                    items: { $ref: '#/components/schemas/CoachConversation' }
+  /coach/messages:
+    post:
+      tags: [Coach]
+      summary: Send a moderated English-learning request to the secure provider-agnostic AI gateway.
+      description: Returns 503 until a secret-backed AI gateway is configured. The endpoint never fabricates AI feedback.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                conversationId: { type: string }
+                message: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '200':
+          description: A verified gateway response stored under the configured retention policy.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoachReply' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /admin/content/words:
+    post:
+      tags: [Content administration]
+      summary: Editor creates draft English-to-English content and a review task.
+      responses:
+        '201':
+          description: Draft created.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/content/words/{wordId}/publish:
+    post:
+      tags: [Content administration]
+      summary: Reviewer or admin publishes a reviewed word and creates an audit event.
+      parameters:
+        - in: path
+          name: wordId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Published version.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Machine-readable error.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    Health:
+      type: object
+      required: [status, service, environment, dataRegion, database, timestamp]
+      properties:
+        status: { type: string, const: ok }
+        service: { type: string, const: lexora-platform-api }
+        environment: { type: string }
+        dataRegion: { type: string, const: us }
+        database: { type: string, enum: [sqlite, postgres] }
+        timestamp: { type: string, format: date-time }
+    PublicConfig:
+      type: object
+      required: [dataRegion, ageGate, policy, releaseLane]
+      properties:
+        dataRegion: { type: string }
+        ageGate: { type: object, additionalProperties: true }
+        policy: { type: object, additionalProperties: true }
+        releaseLane: { type: string }
+    OAuthProvider:
+      type: object
+      required: [provider, configured, flow]
+      properties:
+        provider: { type: string, enum: [google, apple, facebook] }
+        configured: { type: boolean }
+        flow: { type: string, const: oauth_2_1_pkce }
+    RegisterRequest:
+      type: object
+      required: [email, password, ageBand]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 12 }
+        displayName: { type: string, maxLength: 80 }
+        ageBand: { type: string, enum: [under_13, teen, adult] }
+        privacyPolicyVersion: { type: string }
+        termsVersion: { type: string }
+    AuthenticatedSession:
+      type: object
+      required: [user, session]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        session: { $ref: '#/components/schemas/Session' }
+    Session:
+      type: object
+      required: [accessToken, refreshToken, accessTokenExpiresIn, refreshTokenExpiresAt]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        accessTokenExpiresIn: { type: integer }
+        refreshTokenExpiresAt: { type: string, format: date-time }
+    User:
+      type: object
+      required: [id, email, role, ageBand, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        displayName: { type: [string, 'null'] }
+        role: { type: string, enum: [learner, editor, reviewer, admin] }
+        ageBand: { type: string, enum: [under_13, teen, adult] }
+        tenantId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    Word:
+      type: object
+      required: [id, headword, partOfSpeech, cefrLevel, domain, definition, example, collocations, family, review, contentVersion, provenance]
+      properties:
+        id: { type: string }
+        headword: { type: string }
+        phonetic: { type: [string, 'null'] }
+        partOfSpeech: { type: string }
+        cefrLevel: { type: string }
+        domain: { type: string }
+        definition: { type: string }
+        example: { type: string }
+        collocations: { type: array, items: { type: string } }
+        family: { type: array, items: { type: string } }
+        review: { $ref: '#/components/schemas/ReviewPrompt' }
+        contentVersion: { type: integer }
+        provenance: { type: string }
+    ReviewPrompt:
+      type: object
+      required: [prompt, options, hint]
+      properties:
+        prompt: { type: string }
+        options: { type: array, items: { type: string } }
+        hint: { type: string }
+    ReviewWord:
+      allOf:
+        - $ref: '#/components/schemas/Word'
+        - type: object
+          required: [schedule]
+          properties:
+            schedule: { $ref: '#/components/schemas/ReviewSchedule' }
+    ReviewSchedule:
+      type: object
+      required: [dueAt, intervalDays, easeFactor, repetitions]
+      properties:
+        dueAt: { type: string, format: date-time }
+        intervalDays: { type: number }
+        easeFactor: { type: number }
+        repetitions: { type: integer }
+    ReviewResult:
+      type: object
+      required: [wordId, outcome, nextReviewAt, intervalDays, easeFactor, repetitions]
+      properties:
+        wordId: { type: string }
+        outcome: { type: string, enum: [again, hard, good, easy] }
+        nextReviewAt: { type: string, format: date-time }
+        intervalDays: { type: number }
+        easeFactor: { type: number }
+        repetitions: { type: integer }
+    CatalogPage:
+      type: object
+      required: [total, words]
+      properties:
+        total: { type: integer }
+        words: { type: array, items: { $ref: '#/components/schemas/Word' } }
+    LearningPath:
+      type: object
+      required: [id, slug, title, description, domain, contentVersion]
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        description: { type: string }
+        domain: { type: string }
+        contentVersion: { type: integer }
+    Dashboard:
+      type: object
+      required: [user, dueReviews, masteredWords, focusedMinutesLast7Days, entitlements]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        dueReviews: { type: integer }
+        masteredWords: { type: integer }
+        focusedMinutesLast7Days: { type: integer }
+        entitlements: { type: array, items: { $ref: '#/components/schemas/Entitlement' } }
+    Entitlement:
+      type: object
+      required: [planKey, source]
+      properties:
+        planKey: { type: string }
+        source: { type: string }
+        endsAt: { type: [string, 'null'], format: date-time }
+    CoachConversation:
+      type: object
+      required: [id, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: [string, 'null'] }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        retentionUntil: { type: [string, 'null'], format: date-time }
+    CoachReply:
+      type: object
+      required: [conversationId, userMessage, assistantMessage]
+      properties:
+        conversationId: { type: string }
+        userMessage: { type: object, additionalProperties: true }
+        assistantMessage: { type: object, additionalProperties: true }
+    DeletionRequest:
+      type: object
+      required: [requestId, status]
+      properties:
+        requestId: { type: string }
+        status: { type: string, const: pending }
+    ErrorResponse:
+      type: object
+      required: [error, requestId]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: {}
+        requestId: { type: string }

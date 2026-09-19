@@ -1,0 +1,78 @@
+# Example only. Put production secrets in your deployment secret manager, never in this file.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lexora
+      POSTGRES_USER: lexora_api
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set-in-secret-manager}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lexora_api -d lexora"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  directus:
+    image: directus/directus:11
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8055:8055"
+    environment:
+      KEY: ${DIRECTUS_KEY:?set-in-secret-manager}
+      SECRET: ${DIRECTUS_SECRET:?set-in-secret-manager}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?set-in-secret-manager}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?set-in-secret-manager}
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: lexora
+      DB_USER: lexora_api
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set-in-secret-manager}
+      WEBSOCKETS_ENABLED: "true"
+
+  api:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8787:8787"
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      DATABASE_URL: postgresql://lexora_api:${POSTGRES_PASSWORD:?set-in-secret-manager}@postgres:5432/lexora
+      LEXORA_JWT_SECRET: ${LEXORA_JWT_SECRET:?set-in-secret-manager}
+      CORS_ORIGINS: ${CORS_ORIGINS:?set-allowed-origins}
+      LEXORA_DATA_REGION: us
+      LEXORA_MINIMUM_AGE: 13
+      LEXORA_PARENTAL_CONSENT_ENABLED: "false"
+      LEXORA_AI_GATEWAY_URL: ${LEXORA_AI_GATEWAY_URL:-}
+      LEXORA_AI_GATEWAY_TOKEN: ${LEXORA_AI_GATEWAY_TOKEN:-}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+      OAUTH_GOOGLE_REDIRECT_URI: ${OAUTH_GOOGLE_REDIRECT_URI:-}
+      OAUTH_APPLE_CLIENT_ID: ${OAUTH_APPLE_CLIENT_ID:-}
+      OAUTH_APPLE_REDIRECT_URI: ${OAUTH_APPLE_REDIRECT_URI:-}
+      OAUTH_FACEBOOK_CLIENT_ID: ${OAUTH_FACEBOOK_CLIENT_ID:-}
+      OAUTH_FACEBOOK_REDIRECT_URI: ${OAUTH_FACEBOOK_REDIRECT_URI:-}
+
+volumes:
+  postgres-data:
+  redis-data:
